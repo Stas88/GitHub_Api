@@ -7,6 +7,7 @@ import com.google.gson.JsonPrimitive;
 import com.squareup.okhttp.*;
 import net.factory.CLIENT_TYPE;
 import net.factory.HttpClientFactory;
+import net.interceptor.TokenInterceptor;
 import net.model.*;
 import net.util.Util;
 
@@ -20,14 +21,14 @@ public class GitHubApiPlaying {
     private static OkHttpClient client;
     public static final MediaType MEDIA_TYPE_MARKDOWN = MediaType.parse("text/x-markdown; charset=utf-8");
     public static final String LINK_REL_NEXT_PROPERTY = "next";
-    public static final int TIME_BETWEEN_REQUESTS = 10 * 1000;
+    public static final int TIME_BETWEEN_REQUESTS = 5 * 1000;
 
     public static final int NO_STORING_METHOD = 0;
     public static final int SAVE_TO_PARSE_STORING_METHOD = 1;
 
     public GitHubApiPlaying() {
         client = HttpClientFactory.getClient(CLIENT_TYPE.DEFAULT);
-        //client.interceptors().add(new TokenInterceptor());
+        client.interceptors().add(new TokenInterceptor());
     }
 
 
@@ -91,34 +92,7 @@ public class GitHubApiPlaying {
     }
 
     public void runSearchWithPagination(String searchQuery, String language, int storingMethod) throws Exception {
-        HttpUrl url = (new com.squareup.okhttp.HttpUrl.Builder()).scheme("https")
-                .host("api.github.com")
-                .addEncodedPathSegment("search")
-                .addPathSegment("repositories")
-                .addQueryParameter("q", searchQuery)
-                .addEncodedQueryParameter("page", String.valueOf(1))
-                .build();
-        String s = "{\"type\":\"User\",\"site_admin\":false}";
-
-        System.out.println("url: " + url.toString());
-        Request request = (new Request.Builder()).url(url).build();
-        Response response = client.newCall(request).execute();
-        String textFromResponse = response.body().string();
-        Repos repos = gson.fromJson(textFromResponse, Repos.class);
-        for (Repo repo : repos.items) {
-            Util.printRepo(repo);
-            switch (storingMethod) {
-                case NO_STORING_METHOD:
-                    break;
-                case SAVE_TO_PARSE_STORING_METHOD:
-                    ParseApi.postRepoToParse(repo);
-                    break;
-            }
-        }
-        System.out.println("X-RateLimit-Limit: " + response.header("X-RateLimit-Limit"));
-        System.out.println("X-RateLimit-Remaining: " + response.header("X-RateLimit-Remaining"));
-        Thread.sleep(TIME_BETWEEN_REQUESTS);
-        for (int i = Integer.valueOf(response.header("X-RateLimit-Remaining")), j = 2; i > 0; i--, j++) {
+        for (int i = 0, j = 1; i < Integer.MAX_VALUE; i++, j++) {
             Response response1 = (runSearchRequest(searchQuery, language, j));
             String textFromResponse2 = response1.body().string();
             Repos repos2 = gson.fromJson(textFromResponse2, Repos.class);
@@ -128,36 +102,27 @@ public class GitHubApiPlaying {
                     case NO_STORING_METHOD:
                         break;
                     case SAVE_TO_PARSE_STORING_METHOD:
-                        ParseApi.postRepoToParse(repo);
+                        ParseApi.postRepoToParse(repo, searchQuery);
                         break;
                 }
             }
             HashMap<String, String> rels = Util.getRelValueFromResponse(response1);
-            HttpUrl urlTest = (new com.squareup.okhttp.HttpUrl.Builder()).scheme("https")
-                    .host("api.github.com")
-                    .addEncodedPathSegment("search")
-                    .addEncodedPathSegment("repositories")
-                    .addEncodedQueryParameter("q", searchQuery)
-                    .addEncodedQueryParameter("page", String.valueOf(1 + j))
-                    .build();
-//           System.out.println("j: " + j);
-//           System.out.println("urlTest: " + urlTest);
-            System.out.println("X-RateLimit-Remaining: " + response.header("X-RateLimit-Remaining"));
-            System.out.println("X-RateLimit-Limit: " + response.header("X-RateLimit-Limit"));
-            String rellsNExt = rels.get(urlTest.toString());
-            System.out.println("rellsNext: " + rellsNExt);
-            if (!(rellsNExt).equals(LINK_REL_NEXT_PROPERTY)) {
-                System.out.println("!rellsNExt.equals(LINK_REL_NEXT_PROPERTY)");
-                return;
+            System.out.println("X-RateLimit-Remaining: " + response1.header("X-RateLimit-Remaining"));
+            System.out.println("X-RateLimit-Limit: " + response1.header("X-RateLimit-Limit"));
+//            if (!(rellsNExt).equals(LINK_REL_NEXT_PROPERTY)) {
+//                System.out.println("!rellsNExt.equals(LINK_REL_NEXT_PROPERTY)");
+//                return;
+//            }
+            System.out.println("total_count: " + repos2.total_count);
+            if (!response1.isSuccessful()) {
+                throw new IOException("Unexpected code " + response1);
+            } else {
+                //System.out.println(response.body().string());
             }
             Thread.sleep(TIME_BETWEEN_REQUESTS);
+
         }
-        System.out.println("total_count: " + repos.total_count);
-        if (!response.isSuccessful()) {
-            throw new IOException("Unexpected code " + response);
-        } else {
-            System.out.println(response.body().string());
-        }
+
     }
 
     public void runGetReposCommits() throws Exception {
@@ -334,6 +299,7 @@ public class GitHubApiPlaying {
         HttpUrl url = (new com.squareup.okhttp.HttpUrl.Builder()).scheme("https")
                 .host("api.github.com")
                 .addEncodedPathSegment("gists")
+                .addEncodedPathSegment("public")
                 .build();
 
         System.out.println("url: " + url.toString());
@@ -350,17 +316,8 @@ public class GitHubApiPlaying {
         }
     }
 
-    public void runGetAllGistsWithPagination() throws Exception {
-        int page = 1;
-        Response response = runGistsRequest(page);
-        String textFromResponse = response.body().string();
-        System.out.println("url: " + response.request().urlString());
-        System.out.println("textFromResponse: " + textFromResponse);
-        Gist[] gists = gson.fromJson(textFromResponse, Gist[].class);
-        System.out.println(textFromResponse);
-        Util.printGists(gists);
-        Thread.sleep(TIME_BETWEEN_REQUESTS);
-        for (int i = Integer.valueOf(response.header("X-RateLimit-Remaining")), j = 2; i > 0; i--, j++) {
+    public void runGetAllGistsWithPagination() throws Exception {int page = 1;
+        for (int i = 0, j = 1; i < Integer.MAX_VALUE; i--, j++) {
             Response response1 = (runGistsRequest(j));
             HashMap<String, String> rels = Util.getRelValueFromResponse(response1);
             String textFromResponse1 = response1.body().string();
@@ -374,10 +331,35 @@ public class GitHubApiPlaying {
                     .build();
             String rellsNExt = rels.get(urlTest.toString());
             System.out.println("rellsNext: " + rellsNExt);
-            if (!(rellsNExt).equals(LINK_REL_NEXT_PROPERTY)) {
-                System.out.println("!rellsNExt.equals(LINK_REL_NEXT_PROPERTY)");
-                return;
-            }
+//            if (!(rellsNExt).equals(LINK_REL_NEXT_PROPERTY)) {
+//                System.out.println("!rellsNExt.equals(LINK_REL_NEXT_PROPERTY)");
+//                return;
+//            }
+            Thread.sleep(TIME_BETWEEN_REQUESTS);
+        }
+    }
+
+
+    public void runGetAllReposWithPagination() throws Exception {
+        for (int i = 0, j = 1; i < Integer.MAX_VALUE; i--, j++) {
+            Response response1 = runReposRequest(j, SAVE_TO_PARSE_STORING_METHOD);
+            System.out.println("url: " + response1.request().urlString());
+            System.out.println("textFromResponse: " + response1.body().string());
+            //HashMap<String, String> rels = Util.getRelValueFromResponse(response1);
+//            Gist[] gists1 = gson.fromJson(textFromResponse1, Gist[].class);
+//            System.out.println(textFromResponse1);
+//            Util.printGists(gists1);
+//            HttpUrl urlTest = (new HttpUrl.Builder()).scheme("https")
+//                    .host("api.github.com")
+//                    .addEncodedPathSegment("gists")
+//                    .addEncodedQueryParameter("page", String.valueOf(j + 1))
+//                    .build();
+//            String rellsNExt = rels.get(urlTest.toString());
+//            System.out.println("rellsNext: " + rellsNExt);
+//            if (!(rellsNExt).equals(LINK_REL_NEXT_PROPERTY)) {
+//                System.out.println("!rellsNExt.equals(LINK_REL_NEXT_PROPERTY)");
+//                return;
+//            }
             Thread.sleep(TIME_BETWEEN_REQUESTS);
         }
     }
@@ -386,6 +368,7 @@ public class GitHubApiPlaying {
         HttpUrl url1 = (new HttpUrl.Builder()).scheme("https")
                 .host("api.github.com")
                 .addEncodedPathSegment("gists")
+                .addEncodedPathSegment("public")
                 .addEncodedQueryParameter("page", String.valueOf(page))
                 .build();
         System.out.println("url1: " + url1.toString());
@@ -405,12 +388,41 @@ public class GitHubApiPlaying {
         return response1;
     }
 
+    private Response runReposRequest(int page, int storingMethod) throws IOException {
+        HttpUrl url1 = (new HttpUrl.Builder()).scheme("https")
+                .host("api.github.com")
+                .addEncodedPathSegment("repositories")
+                .addEncodedQueryParameter("page", String.valueOf(page))
+                .build();
+        System.out.println("url1: " + url1.toString());
+        Request request = (new Request.Builder()).url(url1).build();
+        Response response = client.newCall(request).execute();
+        String textFromResponse = response.body().string();
+        Repo[] repos = gson.fromJson(textFromResponse, Repo[].class);
+        System.out.println(textFromResponse);
+        for (Repo repo : repos) {
+            Util.printRepo(repo);
+            if(storingMethod == SAVE_TO_PARSE_STORING_METHOD) {
+                ParseApi.postRepoToParse(repo, null);
+            }
+        }
+        System.out.println("X-RateLimit-Limit: " + response.header("X-RateLimit-Limit"));
+        System.out.println("X-RateLimit-Remaining: " + response.header("X-RateLimit-Remaining"));
+        if (!response.isSuccessful()) {
+            throw new IOException("Unexpected code " + response);
+        } else {
+            //System.out.println(response.body().string());
+        }
+        return response;
+    }
+
     private Response runSearchRequest(String searchQuery, String language, int page) throws IOException {
         HttpUrl url1 = (new com.squareup.okhttp.HttpUrl.Builder()).scheme("https")
                 .host("api.github.com")
                 .addEncodedPathSegment("search")
                 .addPathSegment("repositories")
-                .addQueryParameter("q", searchQuery/*.concat("+language:" + language)*/)
+                .addEncodedQueryParameter("q", searchQuery + "+language:"+language)
+                .addEncodedQueryParameter("sort", "stars")
                 .addEncodedQueryParameter("page", String.valueOf(page))
                 .build();
         System.out.println("url1: " + url1.toString());
@@ -423,7 +435,10 @@ public class GitHubApiPlaying {
         //printGists(gists1);
         System.out.println("X-RateLimit-Remaining: " + response1.header("X-RateLimit-Remaining"));
         if (!response1.isSuccessful()) {
-            throw new IOException("Unexpected code " + response1);
+            if(response1.code() == 422) {
+                System.out.println("All 1000 results downloaded");
+            }
+            //throw new IOException("Unexpected code " + response1);
         } else {
             //System.out.println(response1.body().string());
         }
@@ -440,9 +455,9 @@ public class GitHubApiPlaying {
         Request request = (new Request.Builder()).url(url).build();
         Response response = client.newCall(request).execute();
         String textFromResponse = response.body().string();
-        Organisation[] users = gson.fromJson(textFromResponse, Organisation[].class);
+        Organisation[] orgs = gson.fromJson(textFromResponse, Organisation[].class);
         System.out.println(textFromResponse);
-        for (Organisation org : users) {
+        for (Organisation org : orgs) {
             //System.out.println("login: " + user.full_name);
             System.out.println("login: " + org.login);
             System.out.println("description: " + org.description);

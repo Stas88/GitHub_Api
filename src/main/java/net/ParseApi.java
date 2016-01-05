@@ -44,8 +44,14 @@ public class ParseApi {
         return response.body().string();
     }
 
-    public static void postRepoToParse(Repo repo) throws IOException {
-        String url = "https://api.parse.com//1/classes/repositories";
+    public static void postRepoToParse(Repo repo, String searchSymbols) throws IOException {
+
+        String url;
+        if(searchSymbols == null || ("").equals(searchSymbols)) {
+            url = "https://api.parse.com//1/classes/all_repos";
+        } else {
+            url = "https://api.parse.com//1/classes/" + searchSymbols.replace(" ", "_");
+        }
         String postBody = gson.toJson(repo);
         System.out.println("post to Parse..");
         System.out.println("postBody: " + postBody);
@@ -63,6 +69,9 @@ public class ParseApi {
 
             public void onResponse(Response response) throws IOException {
                 if (!response.isSuccessful()) {
+                    if(response.code() == 422) {
+                        System.out.println("Finished with 1000 results");
+                    }
                     throw new IOException("Unexpected code " + response);
                 }
                 System.out.println(response.body().string());

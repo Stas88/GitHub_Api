@@ -9,16 +9,17 @@ public class Main {
         GitHubApiPlaying githubApi = new GitHubApiPlaying();
         //githubApi.runEmojis();
         //githubApi.runUserSearch("aka");
-        githubApi.runRepoSearch("API", "java");
+        //githubApi.runRepoSearch("API", "java");
         //githubApi.runGetAllUsers();
+        //githubApi.runGetAllOrgs();
+        //githubApi.runGetAllGists();
+      //  //githubApi.runGetAllGistsWithPagination();
+        //githubApi.runGetAllReposWithPagination();
         //githubApi.runGetReposCommits();
         //githubApi.runGetReposCommitsComments();
-//        githubApi.runGetReposPages();
-//        githubApi.runGetAllOrgs();
-        //githubApi.runGetAllGists();
-//        githubApi.runRepoReadme();
-        //githubApi.runGetAllGistsWithPagination();
-        //githubApi.runSearchWithPagination("API", "java", githubApi.SAVE_TO_PARSE_STORING_METHOD);
+//      githubApi.runGetReposPages();
+        //githubApi.runRepoReadme();
+        githubApi.runSearchWithPagination("java crawler", "java", githubApi.SAVE_TO_PARSE_STORING_METHOD);
         //githubApi.getAuthorizationsGitHub();
         //githubApi.authorizeGitHub();
     }

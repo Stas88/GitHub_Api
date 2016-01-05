@@ -18,6 +18,9 @@ public class Repo {
     public boolean has_pages;
 
     @Expose
+    public int stargazers_count;
+
+    @Expose
     public String html_url;
     public String url;
 
